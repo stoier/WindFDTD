@@ -21,18 +21,25 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     cR = 0.02;
     bL = 0.2;
     bR = 0.1;
+    L = cL+bL;
     c=343;
     k=1/fs;
     h = c* k;
-    N = floor(cL/h);
-    h = cL/N;
+    //S = 1;
+    nC = floor(cL/h);
+    nB = floor(bL/h);
+    //N = floor(cL/h);
+    N = nC + nB;
+    nMax = floor(10/h);
+    //h = cL/N;
+    h = L/N;
     lambda = c*k/h;
     rho = 1.225;
     H_0 = 2.9*pow(10,-4);
     w = 0.005;
     sR = 1.46*pow(10,-5);
     R = 0.5;
-    omegaR = 600;
+    omegaR = 1643.84;
     M = 5.37 * pow(10,-5);
     sigmaR = 5;
     alphaR = 2+pow(omegaR,2)*pow(k,2)+ sigmaR * k;
@@ -40,6 +47,12 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     xiR = (2* sR * pow(k,2))/M;
     uB= 0;
     uR= 0;
+    
+    sC = std::vector<double>(nC+1,0);
+    sB = std::vector<double>(nB,0);
+    S = std::vector<double>(N+1,0);
+
+    calculateBoreShape();
     deltaP = 0;
     
     a1 = 2/k + pow(omegaR,2) * k + sigmaR;
@@ -47,7 +60,8 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     a3 = 0;
 
     b1 = 0;
-    b2 = (S * h) / (rho * pow(c,2) * k);
+    //b2 = (S * h) / (rho * pow(c,2) * k);
+    b2 = (S[0] * h) / (rho * pow(c,2) * k);
     
     c1 = 0;
     c2 = b2+(a2*sR)/a1;
@@ -55,8 +69,10 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     
     R1 = rho*c;
     R2 = 0.505* rho*c;
-    Lr = 0.613*rho*sqrt(S/MathConstants<double>::pi);
-    Cr = 1.111* sqrt(S)/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
+    //Lr = 0.613*rho*sqrt(S/MathConstants<double>::pi);
+    //Cr = 1.111* sqrt(S)/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
+    Lr = 0.613*rho*sqrt(S[N]/MathConstants<double>::pi);
+    Cr = 1.111* sqrt(S[N])/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
     
     zeta1=(2*R2*k)/(2*R1*R2*Cr+k*(R1+R2));
     zeta2 = (2*R1*R2*Cr-k*(R1+R2))/(2*R1*R2*Cr+k*(R1+R2));
@@ -73,14 +89,11 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     //std::vector<double> y(3, 0);
     y = std::vector<double>(3,0);
     
-    sC = std::vector<double>(nC,0);
-    sB = std::vector<double>(nB,0);
-    
     vStates = std::vector<std::vector<double>> (2,
-                                        std::vector<double>(N, 0));
+                                        std::vector<double>(nMax, 0));
     
     pStates = std::vector<std::vector<double>> (2,
-                                        std::vector<double>(N+1, 0));
+                                        std::vector<double>(nMax+1, 0));
     
     // Initialise vector of pointers to the states
 //    y.resize (3, nullptr);
@@ -91,13 +104,11 @@ WindFDTDVoice::WindFDTDVoice (double kIn) : k (kIn) // <- This is an initialiser
     //for (int i = 0; i < 3; ++i)
     //    y[i] = &yStates[i][0];
     
-    y[0] = -H_0;
-    y[1] = -H_0;
-    y[2] = -H_0;
+    y[0] = 0;
+    y[1] = 0;
+    y[2] = 0;
     
     //std::vector<double> y(3);
-
-    
     
     for (int i = 0; i < 2; ++i)
         v[i] = &vStates[i][0];
@@ -121,22 +132,51 @@ void WindFDTDVoice::startNote (int midiNoteNumber, float velocity,
 {
     //Apply note velocity to output level of the voice
     //level = velocity * 0.1;
+    //Get sample rate
+    fs = getSampleRate();
+    
+//    L = cL+bL;
+//    h = c* k;
+//    nC = floor(cL/h);
+//    nB = floor(bL/h);
+//    N = nC + nB;
+//    h = L/N;
+//    lambda = c*k/h;
+//
+//    sC = std::vector<double>(nC+1,0);
+//    sB = std::vector<double>(nB,0);
+//    S = std::vector<double>(N+1,0);
+//
+//    calculateBoreShape();
+//
+//    y[0] = 0;
+//    y[1] = 0;
+//    y[2] = 0;
+//
+//
+//    xiR = (2* sR * pow(k,2))/M;
+//    a2 = sR / M;
+//    b2 = (S[0] * h) / (rho * pow(c,2) * k);
+//    c2 = b2+(a2*sR)/a1;
+//
+//    Lr = 0.613*rho*sqrt(S[N]/MathConstants<double>::pi);
+//    Cr = 1.111* sqrt(S[N])/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
+//
+//    zeta1=(2*R2*k)/(2*R1*R2*Cr+k*(R1+R2));
+//    zeta2 = (2*R1*R2*Cr-k*(R1+R2))/(2*R1*R2*Cr+k*(R1+R2));
+//    zeta3 = k/(2*Lr)+zeta1/(2*R2)+(Cr*zeta1)/k;
+//    zeta4 = (zeta2+1)/(2*R2)+(Cr*zeta2-Cr)/k;
     
     //Get midi note number
     noteNumber = midiNoteNumber;
     
-    //Get sample rate
-    fs = getSampleRate();
-    
     omegaR = juce::MidiMessage::getMidiNoteInHertz(noteNumber) * 2 * MathConstants<double>::pi;
+    initParameters();
     
     //Update patameters depending on reed frequency
-    alphaR = 2+pow(omegaR,2)*pow(k,2)+ sigmaR * k;
-    betaR = sigmaR * k  - 2 - pow(omegaR,2)*pow(k,2);
-    xiR = (2* sR * pow(k,2))/M;
-    a1 = 2/k + pow(omegaR,2) * k + sigmaR;
-    a2 = sR / M;
-    c2 = b2+(a2*sR)/a1;
+//    alphaR = 2+pow(omegaR,2)*pow(k,2)+ sigmaR * k;
+//    betaR = sigmaR * k  - 2 - pow(omegaR,2)*pow(k,2);
+//    a1 = 2/k + pow(omegaR,2) * k + sigmaR;
     
 }
 
@@ -151,6 +191,7 @@ void WindFDTDVoice::stopNote (float velocity, bool allowTailOff)
     //        }
     //        else
     //        {
+    
     clearCurrentNote();
     noteNumber = 0;
     
@@ -162,27 +203,49 @@ void WindFDTDVoice::stopNote (float velocity, bool allowTailOff)
     b1 = 0;
     c1 = 0;
     c3 = 0;
-    y[0] = -H_0;
-    y[1] = -H_0;
-    y[2] = -H_0;
+    y[0] = 0;
+    y[1] = 0;
+    y[2] = 0;
+    vInt = 0;
+    pInt = 0;
                 
     //        }
 }
 
-void WindFDTDVoice::updateParameters(const double cylinderLengthToSet, const double reedMassToSet, const double reedWidthToSet)
+void WindFDTDVoice::updateParameters(const double cylinderLengthToSet, const double cylinderRadiusToSet, const double bellLengthToSet, const double bellRadiusToSet, const int bellGrowthToSet, const double reedMassToSet, const double reedWidthToSet)
 {
     //update cylinder length and convert cm to m
     cL = cylinderLengthToSet/100;
-    M = reedMassToSet/1000;
-    w = reedWidthToSet/100;
+    cR = cylinderRadiusToSet/100;
+    bL = bellLengthToSet/100;
+    bR = bellRadiusToSet/100;
+    shape = bellGrowthToSet;
+    //M = reedMassToSet/1000;
+    //w = reedWidthToSet/1000;
     //update parameters depinding on cylinder length
-    N = floor(cL/h);
-    h = cL/N;
-    lambda = c*k/h;
-    xiR = (2* sR * pow(k,2))/M;
-    a2 = sR / M;
-    b2 = (S * h) / (rho * pow(c,2) * k);
-    c2 = b2+(a2*sR)/a1;
+    //L = cL + bL;
+    //N = floor(L/h);
+    //h = L/N;
+    //lambda = c*k/h;
+    //xiR = (2* sR * pow(k,2))/M;
+    //a2 = sR / M;
+    //b2 = (S * h) / (rho * pow(c,2) * k);
+    //b2 = (S[0] * h) / (rho * pow(c,2) * k);
+    //c2 = b2+(a2*sR)/a1;
+    
+    
+//    vStates = std::vector<std::vector<double>> (2,
+//                                        std::vector<double>(nMax, 0));
+//
+//    pStates = std::vector<std::vector<double>> (2,
+//                                        std::vector<double>(nMax+1, 0));
+//    v.resize (2, nullptr);
+//    p.resize (2, nullptr);
+    //for (int i = 0; i < 2; ++i)
+    //    v[i] = &vStates[i][0];
+
+    //for (int i = 0; i < 2; ++i)
+    //    p[i] = &pStates[i][0];
     
 }
 
@@ -198,6 +261,7 @@ void WindFDTDVoice::controllerMoved (int controllerNumber, int newControllerValu
 void WindFDTDVoice::getAudioInput(double input)
 {
     audioInput = input;
+    //pMouth = audioInput*100;
 }
 
 float WindFDTDVoice::limit (float val, float min, float max)
@@ -217,17 +281,23 @@ void WindFDTDVoice::renderNextBlock(juce::AudioSampleBuffer &outputBuffer, int s
         while (--numSamples >= 0)
         {
             calculateScheme();
-            currentSample = limit((float) Out, -0.125, 0.125);
+            currentSample = limit((float) Out/22, -0.125, 0.125);
             //DBG(currentSample);
             
             for (auto i = outputBuffer.getNumChannels(); --i >= 0;)
                 outputBuffer.addSample (i, startSample, currentSample);
             
             
+            
             ++startSample;
             updateStates();
+            
+            //dCnt++;
+            //if (dCnt == 220500)
+            //{
+
+            //}
         }
-        
     }
 }
 
@@ -243,7 +313,8 @@ void WindFDTDVoice::calculateScheme()
     
     
     a3 = (2/pow(k,2))*(y[1]-y[2])-pow(omegaR,2)*y[2];
-    b1 = S* v[0][0] + ((S*h)/(rho*pow(c,2) * k))*(pMouth - p[1][0]);
+    //b1 = S* v[0][0] + ((S*h)/(rho*pow(c,2) * k))*(pMouth - p[1][0]);
+    b1 = S[0]* v[0][0] + ((S[0]*h)/(rho*pow(c,2) * k))*(pMouth - p[1][0]);
     c1 = w * ((y[1]+H_0+abs(y[1]+H_0))/2) * sqrt(2/rho);
     c3 = b1 - (a3 * sR)/a1;
 
@@ -255,11 +326,16 @@ void WindFDTDVoice::calculateScheme()
     
     for(int l = 1; l <= N-1; l++)
     {
-        p[0][l] = p[1][l]-((rho*c*lambda)/S)*(v[0][l]*S-v[0][l-1]*S);
+        sMinus = 0.5 * (S[l]+S[l-1]);
+        sPlus = 0.5 * (S[l]+S[l+1]);
+        //p[0][l] = p[1][l]-((rho*c*lambda)/S)*(v[0][l]*S-v[0][l-1]*S);
+        p[0][l] = p[1][l]-((rho*c*lambda)/((sPlus+sMinus)/2))*(v[0][l]*sPlus-v[0][l-1]*sMinus);
     }
     
-    p[0][0] = p[1][0] - (rho*c*lambda)/S *(-2*(uB+uR)+2*S*v[0][0]);
-    p[0][N] = (1-rho*c*lambda*zeta3)/(1+rho*c*lambda*zeta3)*p[1][N]-((2*rho*c*lambda)/(1+rho*c*lambda*zeta3))*(vInt+zeta4*pInt-(0.5*(S+S)*v[0][N-1])/S);
+    //p[0][0] = p[1][0] - (rho*c*lambda)/S *(-2*(uB+uR)+2*S*v[0][0]);
+    p[0][0] = p[1][0] - (rho*c*lambda)/S[0] *(-2*(uB+uR)+2*S[0]*v[0][0]);
+    //p[0][N] = (1-rho*c*lambda*zeta3)/(1+rho*c*lambda*zeta3)*p[1][N]-((2*rho*c*lambda)/(1+rho*c*lambda*zeta3))*(vInt+zeta4*pInt-(0.5*(S+S)*v[0][N-1])/S);
+    p[0][N] = (1-rho*c*lambda*zeta3)/(1+rho*c*lambda*zeta3)*p[1][N]-((2*rho*c*lambda)/(1+rho*c*lambda*zeta3))*(vInt+zeta4*pInt-(0.5*(S[N]+S[N-1])*v[0][N-1])/S[N]);
         
     vInt=vInt+k/Lr*0.5*(p[0][N]+p[1][N]);
     pInt= zeta1 * 0.5*(p[0][N]+p[1][N]) + zeta2 * pInt;
@@ -272,26 +348,30 @@ void WindFDTDVoice::calculateScheme()
 
 void WindFDTDVoice::calculateBoreShape()
 {
+    for (int i = 0; i <= nC; i++)
+    {
+        sC[i] = MathConstants<double>::pi * pow(cR,2);
+    }
     // if bell is linear
     if(shape == 1)
     {
         auto r = cR;
         auto rGrowth = (bR - cR) / nB;
-        for (int i = 0; i<= nB; i++)
+        for (int i = 1; i<= nB; i++)
         {
             r = r + rGrowth;
-            sB[i] = juce::MathConstants<double>::pi*pow(r,2);
+            sB[i-1] = juce::MathConstants<double>::pi*pow(r,2);
         }
     }
     // if bell is exponential
     else if(shape == 2)
     {
         auto r = cR;
-        auto rGrowth = exp(log(bR-cR)/nB);
-        for (int i = 0; i<= nB; i++)
+        auto rGrowth = exp(log(bR/cR)/nB);
+        for (int i = 1; i<= nB; i++)
         {
             r = cR * pow(rGrowth,i);
-            sB[i] = juce::MathConstants<double>::pi*pow(r,2);
+            sB[i-1] = juce::MathConstants<double>::pi*pow(r,2);
         }
     }
     // if bell is logarithmic
@@ -299,18 +379,24 @@ void WindFDTDVoice::calculateBoreShape()
     {
         auto r = cR;
         auto rGrowth = (bR-cR)/log(nB);
-        for (int i = 0; i<= nB; i++)
+        for (int i = 1; i<= nB; i++)
         {
             r = cR + rGrowth * log(i);
-            sB[i] = juce::MathConstants<double>::pi*pow(r,2);
+            sB[i-1] = juce::MathConstants<double>::pi*pow(r,2);
         }
     }
+    sC.insert( sC.end(), sB.begin(), sB.end() );
+    for (int i = 0; i <= N; i++)
+       S[i] = sC[i];
+    
 }
 
 void WindFDTDVoice::calculateOutputFilter()
 {
     // Calculate filter cutoff divided by sample rate
-    auto wF = (2.0*juce::MathConstants<double>::pi*(pow(c,2)*juce::MathConstants<double>::pi/S))/ fs;
+    //auto wF = (2.0*juce::MathConstants<double>::pi*(pow(c,2)*juce::MathConstants<double>::pi/S))/ fs;
+    
+    auto wF = (2.0*juce::MathConstants<double>::pi*(pow(c,2)*juce::MathConstants<double>::pi/S[N]))/ fs;
     
     //Calculate alpha and a coefficients for filter
     auto alphaF = std::sin(wF)/(2.0*0.707);
@@ -359,5 +445,110 @@ void WindFDTDVoice::updateStates()
     y[1] = y[0];
     //y[0] = yTmp;
     //******
+    
 }
+
+void WindFDTDVoice::initParameters()
+{
+    cL = 1;
+    cR = 0.02;
+    bL = 0.2;
+    bR = 0.1;
+    L = cL+bL;
+    c=343;
+    k=1/fs;
+    h = c* k;
+    //S = 1;
+    nC = floor(cL/h);
+    nB = floor(bL/h);
+    //N = floor(cL/h);
+    N = nC + nB;
+    nMax = floor(10/h);
+    //h = cL/N;
+    h = L/N;
+    lambda = c*k/h;
+    rho = 1.225;
+    H_0 = 2.9*pow(10,-4);
+    w = 0.005;
+    sR = 1.46*pow(10,-5);
+    R = 0.5;
+    //omegaR = 1643.84;
+    M = 5.37 * pow(10,-5);
+    sigmaR = 5;
+    alphaR = 2+pow(omegaR,2)*pow(k,2)+ sigmaR * k;
+    betaR = sigmaR * k  - 2 - pow(omegaR,2)*pow(k,2);
+    xiR = (2* sR * pow(k,2))/M;
+    uB= 0;
+    uR= 0;
+    
+    sC = std::vector<double>(nC+1,0);
+    sB = std::vector<double>(nB,0);
+    S = std::vector<double>(N+1,0);
+
+    calculateBoreShape();
+    deltaP = 0;
+    
+    a1 = 2/k + pow(omegaR,2) * k + sigmaR;
+    a2 = sR / M;
+    a3 = 0;
+
+    b1 = 0;
+    //b2 = (S * h) / (rho * pow(c,2) * k);
+    b2 = (S[0] * h) / (rho * pow(c,2) * k);
+    
+    c1 = 0;
+    c2 = b2+(a2*sR)/a1;
+    c3 = 0;
+    
+    R1 = rho*c;
+    R2 = 0.505* rho*c;
+    //Lr = 0.613*rho*sqrt(S/MathConstants<double>::pi);
+    //Cr = 1.111* sqrt(S)/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
+    Lr = 0.613*rho*sqrt(S[N]/MathConstants<double>::pi);
+    Cr = 1.111* sqrt(S[N])/(rho*pow(c,2)*sqrt(MathConstants<double>::pi));
+    
+    zeta1=(2*R2*k)/(2*R1*R2*Cr+k*(R1+R2));
+    zeta2 = (2*R1*R2*Cr-k*(R1+R2))/(2*R1*R2*Cr+k*(R1+R2));
+    zeta3 = k/(2*Lr)+zeta1/(2*R2)+(Cr*zeta1)/k;
+    zeta4 = (zeta2+1)/(2*R2)+(Cr*zeta2-Cr)/k;
+
+
+    
+    //******
+    
+        
+    // Initialise vectors containing the state of the system
+    //std::vector<double> y(3, 0);
+    //std::vector<double> y(3, 0);
+    y = std::vector<double>(3,0);
+    
+    vStates = std::vector<std::vector<double>> (2,
+                                        std::vector<double>(nMax, 0));
+    
+    pStates = std::vector<std::vector<double>> (2,
+                                        std::vector<double>(nMax+1, 0));
+    
+    // Initialise vector of pointers to the states
+//    y.resize (3, nullptr);
+    v.resize (2, nullptr);
+    p.resize (2, nullptr);
+    
+    // Make set memory addresses to first index of the state vectors.
+    //for (int i = 0; i < 3; ++i)
+    //    y[i] = &yStates[i][0];
+    
+    y[0] = 0;
+    y[1] = 0;
+    y[2] = 0;
+    
+    //std::vector<double> y(3);
+    
+    for (int i = 0; i < 2; ++i)
+        v[i] = &vStates[i][0];
+    
+    for (int i = 0; i < 2; ++i)
+        p[i] = &pStates[i][0];
+
+}
+
  

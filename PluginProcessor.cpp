@@ -11,7 +11,7 @@
 
 struct ChainSettings
 {
-    int cylinderLength { 0 }, cylinderRatio { 0 }, bellLength { 0 }, bellRatio { 0 }, reedWidth { 0 }; float reedMass { 0 };
+    int cylinderLength { 0 }, cylinderRadius { 0 }, bellLength { 0 }, bellRadius { 0 }, reedWidth { 0 }; float reedMass { 0 };
 };
 
 ChainSettings getChainSettings(AudioProcessorValueTreeState& apvts);
@@ -20,14 +20,15 @@ ChainSettings getChainSettings(AudioProcessorValueTreeState& apvts);
 WindFDTDpluginAudioProcessor::WindFDTDpluginAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       //.withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                       .withInput  ("Input",  juce::AudioChannelSet::mono(), true)
-                       //.withInput ("Sidechain", juce::AudioChannelSet::mono(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
+                      //#if ! JucePlugin_IsMidiEffect
+                       //#if ! JucePlugin_IsSynth
+                       .withInput  ("Input",  juce::AudioChannelSet::stereo())
+                      //.withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                       
+                      //#endif
+                       .withOutput ("Output", juce::AudioChannelSet::stereo())
+                       .withInput  ("Sidechain",  juce::AudioChannelSet::stereo())
+                     //#endif
                        )
 #endif
 {
@@ -117,6 +118,7 @@ void WindFDTDpluginAudioProcessor::prepareToPlay (double sampleRate, int samples
     windSynth.clearSounds();
     windSynth.addSound(new WindFDTDSound());
     
+    //getWindVoice(0)->startNote(60, 100, nullptr, 0);
     // Initialise the instance of the OneDWave class
     //windVoice = std::make_unique<WindVoice> (1.0 / fs);
 }
@@ -130,26 +132,27 @@ void WindFDTDpluginAudioProcessor::releaseResources()
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool WindFDTDpluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
+  //#if JucePlugin_IsMidiEffect
+  //  juce::ignoreUnused (layouts);
+  //  return true;
+  //#else
     // This is the place where you check if the layout is supported.
     // In this template code we only support mono or stereo.
     // Some plugin hosts, such as certain GarageBand versions, will only
     // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
-
+    //if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
+    // && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+     //   return false;
+    return layouts.getMainInputChannelSet() == layouts.getMainOutputChannelSet()
+                     && ! layouts.getMainInputChannelSet().isDisabled();
     // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
+   //#if ! JucePlugin_IsSynth
+   // if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+   //     return false;
+   //#endif
 
-    return true;
-  #endif
+    //return true;
+  //#endif
 }
 #endif
 
@@ -158,6 +161,8 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+    auto mainInputOutput = getBusBuffer (buffer, true, 0);
+    auto sideChainInput  = getBusBuffer (buffer, true, 1);
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -166,7 +171,7 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // when they first compile a plugin, but obviously you don't need to keep
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+        mainInputOutput.clear (i, 0, mainInputOutput.getNumSamples());
 
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
@@ -181,7 +186,7 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     {
         if (auto voice = dynamic_cast<WindFDTDVoice*>(windSynth.getVoice(i)))
         {
-            voice -> updateParameters(chainSettings.cylinderLength, chainSettings.reedMass, chainSettings.reedWidth);
+            voice -> updateParameters(chainSettings.cylinderLength, chainSettings.cylinderRadius, chainSettings.bellLength, chainSettings.bellRadius, bellGrowthMenuId, chainSettings.reedMass, chainSettings.reedWidth);
         }
     }
     
@@ -206,7 +211,16 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 //        windSynth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 //        }
 //    }
-    windSynth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+    
+    //auto inputLevel = sideChainInput.getRMSLevel(0, 0, sideChainInput.getNumSamples());
+    for (int i = 0; i < windSynth.getNumVoices(); ++i)
+    {
+        if (auto voice = dynamic_cast<WindFDTDVoice*>(windSynth.getVoice(i)))
+        {
+      //      voice -> getAudioInput(inputLevel);
+        }
+    }
+    windSynth.renderNextBlock(mainInputOutput, midiMessages, 0, mainInputOutput.getNumSamples());
 }
 
 //==============================================================================
@@ -227,19 +241,19 @@ void WindFDTDpluginAudioProcessor::getStateInformation (juce::MemoryBlock& destD
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
     
-    juce::MemoryOutputStream mos(destData,true);
-    tree.state.writeToStream(mos);
+    //juce::MemoryOutputStream mos(destData,true);
+    //tree.state.writeToStream(mos);
 }
 
 void WindFDTDpluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
-    auto valueTree = juce::ValueTree::readFromData(data, sizeInBytes);
-    if( valueTree.isValid() )
-    {
-        tree.replaceState(valueTree);
-    }
+    //auto valueTree = juce::ValueTree::readFromData(data, sizeInBytes);
+    //if( valueTree.isValid() )
+    //{
+    //    tree.replaceState(valueTree);
+    //}
 }
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& tree)
@@ -247,9 +261,9 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& tree)
     ChainSettings settings;
     
     settings.cylinderLength = tree.getRawParameterValue("Cylinder Length")->load();
-    settings.cylinderRatio = tree.getRawParameterValue("Cylinder Radius")->load();
+    settings.cylinderRadius = tree.getRawParameterValue("Cylinder Radius")->load();
     settings.bellLength = tree.getRawParameterValue("Bell Length")->load();
-    settings.bellRatio = tree.getRawParameterValue("Bell Radius")->load();
+    settings.bellRadius = tree.getRawParameterValue("Bell Radius")->load();
     settings.reedMass = tree.getRawParameterValue("Reed Mass")->load();
     settings.reedWidth = tree.getRawParameterValue("Reed Width")->load();
     return settings;
@@ -260,9 +274,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout WindFDTDpluginAudioProcessor
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     
     layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Length", "Cylinder Length", 1, 1000, 100));
-    layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Radius", "Cylinder Radius", 1, 100, 5));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Radius", "Cylinder Radius", 1, 100, 2));
     layout.add(std::make_unique<juce::AudioParameterInt>("Bell Length", "Bell Length", 1, 500, 20));
-    layout.add(std::make_unique<juce::AudioParameterInt>("Bell Radius", "Bell Radius", 1, 100, 20));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Bell Radius", "Bell Radius", 1, 100, 10));
     layout.add(std::make_unique<juce::AudioParameterFloat>("Reed Mass", "Reed Mass", 0.01, 10, 0.537));
     layout.add(std::make_unique<juce::AudioParameterInt>("Reed Width", "Reed Width", 1, 100, 5));
     return layout;

@@ -84,7 +84,7 @@ reedWidthSliderAttachment(audioProcessor.tree, "Reed Width", reedWidthSlider)
     
     //setSliderAndLabelRotary(reedWidthSlider, reedWidthLabel, 0.1, 50, 0.1, audioProcessor.reedWidth, "Reed width");
     setSliderAndLabelRotary(reedWidthSlider, reedWidthLabel, "Reed width");
-    reedWidthSlider.setTextValueSuffix(" cm");
+    reedWidthSlider.setTextValueSuffix(" mm");
     //reedMassSlider.setSkewFactor(0.50);
     addAndMakeVisible(reedWidthSlider);
     addAndMakeVisible(reedWidthLabel);
@@ -192,7 +192,7 @@ void WindFDTDpluginAudioProcessorEditor::resized()
  //   }
 //}
 
-//bool Wind_FDTD_pluginAudioProcessorEditor::keyPressed(const KeyPress &key, Component *originatingComponent)
+//bool WindFDTDpluginAudioProcessorEditor::keyPressed(const KeyPress &key, Component *originatingComponent)
 //{
 //    DBG("KeyPressed");
 //    audioProcessor.getWindVoice(0)->startNote(60, 100, nullptr, 0);

@@ -51,7 +51,9 @@ public:
     // Update the states by performing a pointer switch.
     void updateStates();
     
-    void updateParameters(const double cylinderLengthToSet, const double reedMassToSet, const double reedWidthToSet);
+    void updateParameters(const double cylinderLengthToSet, const double cylinderRadiusToSet, const double bellLengthToSet, const double bellRadiusToSet, const int bellGrowth, const double reedMassToSet, const double reedWidthToSet);
+    
+    void initParameters();
     
     // Function to visualise the state of the system.
     //Path visualiseState (Graphics& g);
@@ -116,12 +118,17 @@ private:
     double pInt; //
     double level = 0;//
     double audioInput = 0;
+    double nMax;
+    
+    int dCnt = 0;
 
-    double pMouth = 10;
+    double pMouth = 500;
     double Out = 0;
     double currentSample = 0.0;
     
-    double S = 1;
+    //double S = 1;
+    double sMinus;
+    double sPlus;
     double fs = getSampleRate();
     int noteNumber =0;
     
@@ -129,6 +136,7 @@ private:
     
     int nC = 0;
     int nB = 0;
+    //int boreCnt = 0;
     
     int shape=1;
     
@@ -166,8 +174,8 @@ private:
     
     std::vector<double> sB;
     
-    // std::vector<double> S;
-    
+    std::vector<double> S;
+    //double S;
         
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WindFDTDVoice)
 };
