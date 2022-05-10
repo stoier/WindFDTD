@@ -11,7 +11,7 @@
 
 struct ChainSettings
 {
-    int cylinderLength { 0 }, cylinderRadius { 0 }, bellLength { 0 }, bellRadius { 0 }, reedWidth { 0 }; float reedMass { 0 };
+    int  cylinderRadius { 0 },  bellRadius { 0 }, reedWidth { 0 }, attack { 0 }, decay { 0 }, sustain { 0 }, release { 0 }; float boreScale { 0 }, cylinderBellRatio { 0 }, reedMass { 0 }, pressure { 0 }, vibratoRate { 0 }, vibratoAmount { 0 };
 };
 
 ChainSettings getChainSettings(AudioProcessorValueTreeState& apvts);
@@ -20,16 +20,13 @@ ChainSettings getChainSettings(AudioProcessorValueTreeState& apvts);
 WindFDTDpluginAudioProcessor::WindFDTDpluginAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
-                      //#if ! JucePlugin_IsMidiEffect
-                       //#if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo())
-                      //.withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                       
-                      //#endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo())
-                       .withInput  ("Sidechain",  juce::AudioChannelSet::stereo())
-                     //#endif
-                       )
+                #if ! JucePlugin_IsMidiEffect
+                 #if ! JucePlugin_IsSynth
+                    //.withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                 #endif
+                    .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                #endif
+                    )
 #endif
 {
 
@@ -111,7 +108,7 @@ void WindFDTDpluginAudioProcessor::prepareToPlay (double sampleRate, int samples
     windSynth.setCurrentPlaybackSampleRate(fs);
     //Add voices (2 voices of polyphony)
     windSynth.clearVoices();
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 8; i++)
     {
         windSynth.addVoice(new WindFDTDVoice(1/fs));
     }
@@ -132,27 +129,26 @@ void WindFDTDpluginAudioProcessor::releaseResources()
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool WindFDTDpluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  //#if JucePlugin_IsMidiEffect
-  //  juce::ignoreUnused (layouts);
-  //  return true;
-  //#else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
-    //if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-    // && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-     //   return false;
-    return layouts.getMainInputChannelSet() == layouts.getMainOutputChannelSet()
-                     && ! layouts.getMainInputChannelSet().isDisabled();
-    // This checks if the input layout matches the output layout
-   //#if ! JucePlugin_IsSynth
-   // if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-   //     return false;
-   //#endif
+#if JucePlugin_IsMidiEffect
+  juce::ignoreUnused (layouts);
+  return true;
+#else
+  // This is the place where you check if the layout is supported.
+  // In this template code we only support mono or stereo.
+  // Some plugin hosts, such as certain GarageBand versions, will only
+  // load plugins that support stereo bus layouts.
+  if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
+   && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+      return false;
 
-    //return true;
-  //#endif
+  // This checks if the input layout matches the output layout
+ #if ! JucePlugin_IsSynth
+  if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+      return false;
+ #endif
+
+  return true;
+#endif
 }
 #endif
 
@@ -161,8 +157,8 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    auto mainInputOutput = getBusBuffer (buffer, true, 0);
-    auto sideChainInput  = getBusBuffer (buffer, true, 1);
+    //auto mainInputOutput = getBusBuffer (buffer, true, 0);
+    //auto sideChainInput  = getBusBuffer (buffer, true, 2);
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -171,7 +167,7 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // when they first compile a plugin, but obviously you don't need to keep
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        mainInputOutput.clear (i, 0, mainInputOutput.getNumSamples());
+        buffer.clear (i, 0, buffer.getNumSamples());
 
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
@@ -186,7 +182,8 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     {
         if (auto voice = dynamic_cast<WindFDTDVoice*>(windSynth.getVoice(i)))
         {
-            voice -> updateParameters(chainSettings.cylinderLength, chainSettings.cylinderRadius, chainSettings.bellLength, chainSettings.bellRadius, bellGrowthMenuId, chainSettings.reedMass, chainSettings.reedWidth);
+            voice -> setADSR(fs);
+            voice -> updateParameters(chainSettings.boreScale, chainSettings.cylinderRadius, chainSettings.cylinderBellRatio, chainSettings.bellRadius, bellGrowthMenuId, chainSettings.reedMass, chainSettings.reedWidth, chainSettings.pressure, chainSettings.attack, chainSettings.decay, chainSettings.sustain, chainSettings.release, pressureMultMenuId, chainSettings.vibratoRate, chainSettings.vibratoAmount);
         }
     }
     
@@ -212,15 +209,15 @@ void WindFDTDpluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 //        }
 //    }
     
-    //auto inputLevel = sideChainInput.getRMSLevel(0, 0, sideChainInput.getNumSamples());
-    for (int i = 0; i < windSynth.getNumVoices(); ++i)
-    {
-        if (auto voice = dynamic_cast<WindFDTDVoice*>(windSynth.getVoice(i)))
-        {
-      //      voice -> getAudioInput(inputLevel);
-        }
-    }
-    windSynth.renderNextBlock(mainInputOutput, midiMessages, 0, mainInputOutput.getNumSamples());
+//    auto inputLevel = sideChainInput.getRMSLevel(0, 0, sideChainInput.getNumSamples());
+//    for (int i = 0; i < windSynth.getNumVoices(); ++i)
+//    {
+//        if (auto voice = dynamic_cast<WindFDTDVoice*>(windSynth.getVoice(i)))
+//        {
+//            voice -> getAudioInput(inputLevel);
+//        }
+//    }
+    windSynth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 }
 
 //==============================================================================
@@ -260,12 +257,22 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& tree)
 {
     ChainSettings settings;
     
-    settings.cylinderLength = tree.getRawParameterValue("Cylinder Length")->load();
+    //settings.cylinderLength = tree.getRawParameterValue("Cylinder Length")->load();
+    settings.boreScale = tree.getRawParameterValue("Bore Scale")->load();
     settings.cylinderRadius = tree.getRawParameterValue("Cylinder Radius")->load();
-    settings.bellLength = tree.getRawParameterValue("Bell Length")->load();
+    //settings.bellLength = tree.getRawParameterValue("Bell Length")->load();
+    settings.cylinderBellRatio = tree.getRawParameterValue("Cylinder Bell Ratio")->load();
     settings.bellRadius = tree.getRawParameterValue("Bell Radius")->load();
     settings.reedMass = tree.getRawParameterValue("Reed Mass")->load();
     settings.reedWidth = tree.getRawParameterValue("Reed Width")->load();
+    settings.pressure = tree.getRawParameterValue("Pressure")->load();
+    //settings.bellGrowth = tree.getRawParameterValue("Bell Growth")->load();
+    settings.attack = tree.getRawParameterValue("Attack")->load();
+    settings.decay = tree.getRawParameterValue("Decay")->load();
+    settings.sustain = tree.getRawParameterValue("Sustain")->load();
+    settings.release = tree.getRawParameterValue("Release")->load();
+    settings.vibratoRate  = tree.getRawParameterValue("Vibrato Rate")->load();
+    settings.vibratoAmount  = tree.getRawParameterValue("Vibrato Amount")->load();
     return settings;
 }
 
@@ -273,12 +280,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout WindFDTDpluginAudioProcessor
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     
-    layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Length", "Cylinder Length", 1, 1000, 100));
-    layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Radius", "Cylinder Radius", 1, 100, 2));
-    layout.add(std::make_unique<juce::AudioParameterInt>("Bell Length", "Bell Length", 1, 500, 20));
+    //layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Length", "Cylinder Length", 1, 1000, 100));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Cylinder Radius", "Cylinder Radius", 1, 25, 2));
+    //layout.add(std::make_unique<juce::AudioParameterInt>("Bell Length", "Bell Length", 1, 500, 20));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Bore Scale", "Bore Scale", 0.1f, 10.f, 2.4f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Cylinder Bell Ratio", "Cylinder Bell Ratio", 0.f, 1.f, 0.8f));
     layout.add(std::make_unique<juce::AudioParameterInt>("Bell Radius", "Bell Radius", 1, 100, 10));
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Reed Mass", "Reed Mass", 0.01, 10, 0.537));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Reed Mass", "Reed Mass", 0.01f, 10.f, 0.537f));
     layout.add(std::make_unique<juce::AudioParameterInt>("Reed Width", "Reed Width", 1, 100, 5));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Pressure", "Pressure", 0.f, 1000.f, 0.f));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Attack", "Attack", 0, 1000, 0));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Decay", "Decay", 0, 1000, 0));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Sustain", "Sustain", 0, 1, 1));
+    layout.add(std::make_unique<juce::AudioParameterInt>("Release", "Release", 0, 5000, 500));
+    //layout.add(std::make_unique<juce::AudioParameterInt>("Attack", "Attack", NormalisableRange<int>(0 ,1000, 1, 0.4f), 0));
+    //layout.add(std::make_unique<juce::AudioParameterInt>("Decay", "Decay", NormalisableRange<int>(0 ,1000, 1, 0.4f), 0));
+    //layout.add(std::make_unique<juce::AudioParameterFloat>("Sustain", "Sustain", 0.f, 1.f, 1.f));
+    //layout.add(std::make_unique<juce::AudioParameterInt>("Release", "Release", NormalisableRange<int>(0, 5000, 1, 0.4f), 500.f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Vibrato Rate", "Vibrato Rate", NormalisableRange<float>(0.1f, 1000.f, 0.01f, 0.25f), 0.1f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Vibrato Amount", "Vibrato Amount", 0.f, 12.f, 0.f));
+    //layout.add(std::make_unique<juce::AudioParameterChoice>("Bell Growth", "Bell Growth", StringArray("Linear", "Exponential", "Logarithmic"), 1));
     return layout;
 }
 

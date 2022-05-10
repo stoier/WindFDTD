@@ -43,18 +43,23 @@ private:
     // access the processor object that created it.
     WindFDTDpluginAudioProcessor& audioProcessor;
     
-    Slider cylinderLengthSlider, cylinderRadiusSlider, bellLengthSlider, bellEndRadiusSlider;
-    Label cylinderLengthLabel, cylinderRadiusLabel, bellLengthLabel, bellEndRadiusLabel;
+    Slider cylinderLengthSlider, cylinderRadiusSlider, bellLengthSlider, bellEndRadiusSlider, pressureSlider, attackSlider, decaySlider, sustainSlider, releaseSlider, vibRateSlider, vibAmountSlider;
+    Label cylinderLengthLabel, cylinderRadiusLabel, bellLengthLabel, bellEndRadiusLabel, pressureLabel, attackLabel, decayLabel, sustainLabel, releaseLabel, vibRateLabel, vibAmountLabel;
     
-    ComboBox bellGrowthMenu;
+    ComboBox bellGrowthMenu, pressureMultiply;
+    
+    
     
     Slider reedMassSlider, reedWidthSlider;
     Label reedMassLabel, reedWidthLabel;
     
     using APVTS = juce::AudioProcessorValueTreeState;
-    using Attachment = APVTS::SliderAttachment;
+    using sliderAttachment = APVTS::SliderAttachment;
+    //using comboBoxAttachment = APVTS::ComboBoxAttachment;
     
-    Attachment cylinderLengthSliderAttachment, cylinderRadiusSliderAttachment, bellLengthSliderAttachment, bellEndRadiusSliderAttachment, reedMassSliderAttachment, reedWidthSliderAttachment;
+    sliderAttachment cylinderLengthSliderAttachment, cylinderRadiusSliderAttachment, bellLengthSliderAttachment, bellEndRadiusSliderAttachment, reedMassSliderAttachment, reedWidthSliderAttachment, pressureSliderAttachment, attackSliderAttachment, decaySliderAttachment, sustainSliderAttachment, releaseSliderAttachment, vibRateSliderAttachment, vibAmountSliderAttachment;
+    
+    //comboBoxAttachment bellGrowthAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WindFDTDpluginAudioProcessorEditor)
 };

@@ -51,9 +51,15 @@ public:
     // Update the states by performing a pointer switch.
     void updateStates();
     
-    void updateParameters(const double cylinderLengthToSet, const double cylinderRadiusToSet, const double bellLengthToSet, const double bellRadiusToSet, const int bellGrowth, const double reedMassToSet, const double reedWidthToSet);
+    //void updateParameters(const double cylinderLengthToSet, const double cylinderRadiusToSet, const double bellLengthToSet, const double bellRadiusToSet, const int bellGrowth, const double reedMassToSet, const double reedWidthToSet, const double pressure);
+    
+    void updateParameters(const double boreScaleToSet, const double cylinderRadiusToSet, const double bellCylinderRatio, const double bellRadiusToSet, const int bellGrowth, const double reedMassToSet, const double reedWidthToSet, const double pressure, const double attack, const double decay, const double sustain, const double release, const double pressureMultToSet, const double vibRateToSet, const double vibAmountToSet);
     
     void initParameters();
+    
+    void getLength(double boreScale, double cylinderBellRatio);
+    
+    void setADSR(double sampleRate);
     
     // Function to visualise the state of the system.
     //Path visualiseState (Graphics& g);
@@ -119,12 +125,17 @@ private:
     double level = 0;//
     double audioInput = 0;
     double nMax;
+    double boreScale = 2.4;
+    double cBRatio = 0.75;
     
     int dCnt = 0;
 
-    double pMouth = 500;
+    double pMouth = 0;
     double Out = 0;
     double currentSample = 0.0;
+    
+    double pressureMultiply = 1;
+    
     
     //double S = 1;
     double sMinus;
@@ -149,6 +160,20 @@ private:
     double lastInSampleTwo24db = 0.0;
     double lastOutSampleOne24db = 0.0;
     double lastOutSampleTwo24db = 0.0;
+    
+    double pressureAttack = 0.01;
+    double pressureDecay = 0.0;
+    double pressureSustain = 1;
+    double pressureRelease = 0.2;
+    
+    juce::ADSR pressureAdsr;
+    juce::ADSR::Parameters pressureAdsrParams;
+    
+    double currentAngleVib = 0;
+    double angleDeltaVib = 0;
+    double vibRate = 0.1;
+    double vibAmount = 0;
+    double currentVib = 0;
 
     // A vector of 3 vectors saving the states of the system at n+1, n and n-1
     //std::vector<std::vector<double>> yStates;

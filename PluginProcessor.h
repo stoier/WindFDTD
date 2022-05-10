@@ -65,6 +65,7 @@ public:
     //double bellLength = 30;
     //double bellEndRadius = 10;
     int bellGrowthMenuId = 1;
+    int pressureMultMenuId = 1;
     //double reedMass = 1;
     //double reedWidth = 1;
     
