@@ -9,20 +9,17 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "ThinPlate.h"
+#include "WindFDTDVoice.h"
 
 //==============================================================================
 /**
 */
-class PlateAudioProcessor  : public juce::AudioProcessor
-                            #if JucePlugin_Enable_ARA
-                             , public juce::AudioProcessorARAExtension
-                            #endif
+class WindFDTDpluginAudioProcessor  : public juce::AudioProcessor
 {
 public:
     //==============================================================================
-    PlateAudioProcessor();
-    ~PlateAudioProcessor() override;
+    WindFDTDpluginAudioProcessor();
+    ~WindFDTDpluginAudioProcessor() override;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -33,8 +30,6 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-    
-    
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -59,28 +54,28 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    
     float limit (float val, float min, float max);
     
-    
-    juce::AudioProcessorValueTreeState tree{*this, nullptr, "Params", createParameterLayout()};
-    
-    bool hit, firstHit;
-    bool bowStart, bowEnd, firstBow;
-    int plateMaterialId;
-    int excTypeId;
-    int bellGrowthMenuId = 1;
-    bool tubeConn = false;
-    bool springConng = true;
-    
-private:
-    //==============================================================================
-    
-    double fs; // Sample rate
-    float output;
 
-    std::shared_ptr<ThinPlate> thinPlate;
+    int bellGrowthMenuId = 1;
+    int pressureMultMenuId = 1;
+
     
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PlateAudioProcessor)
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    
+    juce::AudioProcessorValueTreeState tree{*this, nullptr, "Patams", createParameterLayout()};
+    
+    juce::SynthesiserVoice* getWindVoice (int i) {
+        return windSynth.getVoice (i);
+    }
+private:
+    
+    double fs; // Sample rate which we can retrieve from the prepareToPlay function
+    
+    juce::Synthesiser windSynth;
+
+    //==============================================================================
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WindFDTDpluginAudioProcessor)
 };
+
+
