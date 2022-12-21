@@ -9,17 +9,20 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "WindFDTDVoice.h"
+#include "ThinPlate.h"
 
 //==============================================================================
 /**
 */
-class WindFDTDpluginAudioProcessor  : public juce::AudioProcessor
+class PlateAudioProcessor  : public juce::AudioProcessor
+                            #if JucePlugin_Enable_ARA
+                             , public juce::AudioProcessorARAExtension
+                            #endif
 {
 public:
     //==============================================================================
-    WindFDTDpluginAudioProcessor();
-    ~WindFDTDpluginAudioProcessor() override;
+    PlateAudioProcessor();
+    ~PlateAudioProcessor() override;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -30,6 +33,8 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    
+    
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -54,26 +59,28 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    float limit (float val, float min, float max);
-    
-
-    int bellGrowthMenuId = 1;
-    int pressureMultMenuId = 1;
-
-    
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     
-    juce::AudioProcessorValueTreeState tree{*this, nullptr, "Patams", createParameterLayout()};
+    float limit (float val, float min, float max);
     
-    juce::SynthesiserVoice* getWindVoice (int i) {
-        return windSynth.getVoice (i);
-    }
+    
+    juce::AudioProcessorValueTreeState tree{*this, nullptr, "Params", createParameterLayout()};
+    
+    bool hit, firstHit;
+    bool bowStart, bowEnd, firstBow;
+    int plateMaterialId;
+    int excTypeId;
+    int bellGrowthMenuId = 1;
+    bool tubeConn = false;
+    bool springConng = true;
+    
 private:
-    
-    double fs; // Sample rate which we can retrieve from the prepareToPlay function
-    
-    juce::Synthesiser windSynth;
-
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WindFDTDpluginAudioProcessor)
+    
+    double fs; // Sample rate
+    float output;
+
+    std::shared_ptr<ThinPlate> thinPlate;
+    
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PlateAudioProcessor)
 };
